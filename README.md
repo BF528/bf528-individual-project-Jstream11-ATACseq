@@ -1,51 +1,21 @@
-# RNAseq
+# ATACseq
 
 ## Methods
-You will start by performing QC and adapter trimming as you have done for other experiments. I would recommend you align reads using BowTie2 with the -X 2000 flag. After alignment, you will need to first remove any alignments to the mitochondrial chromosome (look at samtools view options).
-After this filtering, you will want to shift your reads to account for the bias induced by the “tagmentation” process (there are various tools to accomplish this including deeptools). After this, you will want to perform a quality control analysis by looking at the fragment distribution sizes for your samples using a tool like ATACSeqQC.
-You can perform peak calling using MACS3 and their recommended default parameters for ATACseq for each replicate. Similar to ChIPseq, you will need to come up with a bedtool strategy to generate a single set of “reproducible” peaks and then filter any peaks falling into blacklisted regions. After this, you will perform similar analyses to a ChIPseq.
-**Data Retrieval and Preprocessing**
-Data was downloaded from the European Molecular Biology Laboratory - European Bioinformatics Institute (EMBL-ENA) using the Gene Expression Omnibus (GEO) accession GSE75070. Reads were processed to remove adaptors using Trimommatic [version 0.39] with the following parameters:
+**Preprocessing**
+Reads were processed to remove adaptors using Trimommatic [version 0.39] with the following parameters:
 ```{bash}
   trimmomatic SE -threads {threads} <fastq_input> <trimmed_output> ILLUMINACLIP:<adapters_input>:2:30:10 LEADING:3 TRAILING:3 SLIDINGWINDOW:4:15
 ```
 The quality of the processed reads was assessed using FastQC [version 0.12.1-0] and default parameters.
 
 **Genome Alignment and Processing**
-A genome index was constructed using the 'GRCh38.primary_assembly.genome.fa.gz' file and default parameters. Processed reads were aligned to the human reference genome using Bowtie2 [version 2.5.3] and the Bowtie2 genome index using default parameters. Aligned reads were converted to BAM format with Samtools [version 1.19.2] and subsequently sorted using default parameters. Index files for the sorted BAM files were generated with default parameters to facilitate efficient retrieval of data. MultiQC [version 1.20] and Samtools flagstat were employed with default parameters to assess the quality of each sample.
+A genome index was constructed using the 'GRCh38.primary_assembly.genome.fa.gz' file and default parameters. Processed reads were aligned to the human reference genome using Bowtie2 [version 2.5.3] and the Bowtie2 genome index using the -X 2000 flag. Aligned reads were processed to remove alignements with mitochondrial chromosome using Samtools [version 1.19.2] view. Filtered reads where shifted to account for biases induced by tagmentation processing using deeptools [version 3.5.4] alignementSieve --ATACshift. Alignment quality control was performed with ATACSeqQC [version 4.3] with default parameters. Aligned reads were converted to BAM format with Samtools [version 1.19.2] and subsequently sorted using default parameters. Index files for the sorted BAM files were generated with default parameters to facilitate efficient retrieval of data. BigWig files were generated from the sorted BAM files using deeptools [version 3.5.4] bamCoverage with default parameters.
 
-**Signal Generation and Analysis**
-BigWig files were generated from the sorted BAM files using deeptools [version 3.5.4] bamCoverage with default parameters. A single matrix containing information from all BigWig files was generated using deeptools multiBigwig with default parameters. Pearson correlation plots were created to assess the correlation between samples using deeptools plotCorrelation with the following parameters:
-```{bash}
-plotCorrelation -in <matrix_input> --corMethod spearman --skipZeros --whatToPlot heatmap --plotNumbers -o <plot_output.png>
-```
-**Peak Calling and Annotation**
-Tag directories were constructed using HOMER [version 4.11] makeTagDir on each of the sorted BAM files with default parameters. Peaks were identified using HOMER findPeaks on each experiment replicate, using the following parameters:
-```{bash}
-findPeaks <path_to_RUNX1_{rep}_tagDir> -style factor -i <path_to_INP_{rep}_tagDir> -o <{rep}_peaks.txt>
-```
-  with outputs converted to BED format using HOMER pos2bed.pl using default parameters. Reproducible peaks between replicates were identified using bedtools [version 2.31.1] intersect using the following parameters:
-```{bash}
-bedtools intersect -a <rep1_peaks.bed> -b <rep2_peaks.bed> -f 0.5 -r > <reproducible_peaks.bed>
-```
-  and filtered against the GENCODE blacklist reference BED file using the following parameters:
-```{bash}
-bedtools intersect -a <reproducible_peaks.bed> -b <blacklist.bed> -v > <filtered_peaks.bed>
-```
-Reproducible peaks were annotated to their nearest genomic features using HOMER annotatePeaks.pl with the following parameters:
-```{bash}
-annotatePeaks.pl <filtered_peaks.bed> hg38 -gtf <gencode.v45.primary_assembly.annotation.gtf> > <annotated_peaks.txt>
-```
-Motif finding was performed on the list of filtered, reproducible peaks using HOMER findMotifsGenome with the following parameters:
-```{bash}
-findMotifsGenome.pl <reproducible_peaks.bed> <GRCh38.primary_assembly.genome.fa> <motif_output_directory> -size 200
-```
+**Peak Calling**
+Peaks were identified with MACS [version 3.0.0] callpeak using default parameters. Reproducible peaks between replicates were identified using bedtools [version 2.31.1] intersect, using -f 0.5 -r flags, and filtered against the GENCODE blacklist reference BED file, using -v.  Motif finding was performed on the list of filtered, reproducible peaks using HOMER [version 4.11] findMotifsGenome with the -size 200 flag.
+
 **Functional Analysis and Visualization**
-A matrix of signal values across hg38 genes was generated using deeptools computeMatrix, BED file of hg38 from UCSC Genome Browser, and previously generated BigWig files with the following parameters:
-```{bash}  
-computeMatrix scale-regions -S <RUNX1_{rep}.bigWig> -R <hg38_genes.bed> -b 2000 -a 2000 -o <{rep}_matrix.gz>
-```
-Signal across hg38 genes was visualized using deeptools plotProfile and matrix outputs with default parameters. Peaks were visualized using the Integrative Genomics Viewer (IGV), incorporating BigWig files, reproducible peaks BED file, and primary assembly GTF file. Specifically, analysis focused on MALAT1 and NEAT1 genes. Annotated peaks were integrated with DESeq2 results from the GEO accession GSE75070, applying filters padj < 0.1 and log2foldchange > 1 on genes.
+A matrix of signal values across hg38 genes was generated using deeptools computeMatrix, BED file of hg38 from UCSC Genome Browser, and previously generated BigWig files. Signal across hg38 genes was visualized using deeptools plotProfile and matrix outputs with default parameters.
 
 
 ## Questions to Address
