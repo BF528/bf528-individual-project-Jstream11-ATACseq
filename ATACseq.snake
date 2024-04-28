@@ -6,8 +6,8 @@ REPS = set(sample_csv['replicate'].tolist())
 
 rule all:
 	input:
-		expand('results/{condition}_{rep}_fastqc.html', condition=CONDITIONS, rep=REPS),
-		expand('results/{condition}_{rep}.trimmed.fastq', condition=CONDITIONS, rep=REPS),
+		expand('results/ATAC{rep}_{condition}_fastqc.html', condition=CONDITIONS, rep=REPS),
+		expand('results/ATAC{rep}_{condition}.trimmed.fastq', condition=CONDITIONS, rep=REPS),
 		expand('results/GRCh38_index.{ext}', ext=['1.bt2', '2.bt2', '3.bt2', '4.bt2', 'rev.1.bt2', 'rev.2.bt2'])
 
 rule bowtie2_build_gencode:
@@ -27,9 +27,9 @@ rule bowtie2_build_gencode:
 
 rule fastqc:
 	input:
-		fastq = 'samples/{condition}_{rep}.fastq.gz'
+		fastq = 'samples/ATAC{rep}_{condition}.fastq.gz'
 	output:
-		fastqc = 'results/{condition}_{rep}_fastqc.html'
+		fastqc = 'results/ATAC{rep}_{condition}_fastqc.html'
 	params:
 		outdir = 'results/'
 	threads: 4
@@ -42,10 +42,10 @@ rule fastqc:
 
 rule trimomatic:
 	input: 
-		fastq = 'samples/{condition}_{rep}.fastq.gz',
+		fastq = 'samples/ATAC{rep}_{condition}.fastq.gz',
 		adapters = 'TruSeq3-SE.fa'
 	output:
-		trimmed = 'results/{condition}_{rep}.trimmed.fastq'
+		trimmed = 'results/ATAC{rep}_{condition}.trimmed.fastq'
 	threads: 8
 	conda:
 		'envs/trimmomatic_env.yml'
