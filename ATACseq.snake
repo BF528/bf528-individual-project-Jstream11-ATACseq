@@ -6,10 +6,14 @@ REPS = set(sample_csv['replicate'].tolist())
 
 rule all:
 	input:
-		expand('results/ATAC{rep}_{condition}_fastqc.html', condition=CONDITIONS, rep=REPS),
-		expand('results/ATAC{rep}_{condition}.trimmed.fastq', condition=CONDITIONS, rep=REPS),
-		expand('results/GRCh38_index.{ext}', ext=['1.bt2', '2.bt2', '3.bt2', '4.bt2', 'rev.1.bt2', 'rev.2.bt2'])
+		expand('results/{rep}_{condition}_fastqc.html', condition=CONDITIONS, rep=REPS),
+		expand("results/{rep}_{condition}_sorted_wMT_flagstats.txt", condition=CONDITIONS, rep=REPS),
+		expand("results/{rep}_{condition}_sorted_noMT_flagstats.txt", condition=CONDITIONS, rep=REPS),
+		expand("results/{rep}_{condition}_sorted.idxstats", condition=CONDITIONS, rep=REPS),
+		expand("results/{rep}_{condition}_sorted_noMT.idxstats", condition=CONDITIONS, rep=REPS),
+		'results/ATACseq_samplepearsoncorrelation.png'
 
+## BUILD GENOME INDEX AND PREPROCESS SAMPLES
 rule bowtie2_build_gencode:
 	input:
 		ref = 'GRCh38.primary_assembly.genome.fa.gz'
@@ -27,9 +31,9 @@ rule bowtie2_build_gencode:
 
 rule fastqc:
 	input:
-		fastq = 'samples/ATAC{rep}_{condition}.fastq.gz'
+		fastq = 'samples/{rep}_{condition}.fastq.gz'
 	output:
-		fastqc = 'results/ATAC{rep}_{condition}_fastqc.html'
+		fastqc = 'results/{rep}_{condition}_fastqc.html'
 	params:
 		outdir = 'results/'
 	threads: 4
@@ -42,14 +46,167 @@ rule fastqc:
 
 rule trimomatic:
 	input: 
-		fastq = 'samples/ATAC{rep}_{condition}.fastq.gz',
+		fastq = 'samples/{rep}_{condition}.fastq.gz',
 		adapters = 'TruSeq3-SE.fa'
 	output:
-		trimmed = 'results/ATAC{rep}_{condition}.trimmed.fastq'
+		trimmed = 'results/{rep}_{condition}.trimmed.fastq'
 	threads: 8
 	conda:
 		'envs/trimmomatic_env.yml'
 	shell:
 		'''
 		trimmomatic SE -threads {threads} {input.fastq} {output.trimmed} ILLUMINACLIP:{input.adapters}:2:30:10 LEADING:3 TRAILING:3 SLIDINGWINDOW:4:15
+		'''
+
+## ALIGNMENT AND PROCESSING
+rule bowtie2_align:
+	input:
+		fastq = "results/{rep}_{condition}.trimmed.fastq"
+	output:
+		bam = "results/{rep}_{condition}.bam"
+	threads: 16
+	params:
+		basename = "results/GRCh38_index"
+	conda:
+		'envs/bowtie2_env.yml'
+	shell:
+		'''
+		bowtie2 --threads {threads} -X 2000 -x {params.basename} -U {input.fastq} \
+		 | samtools view -h -S -b -o {output.bam} 
+		'''
+
+rule samtools_sort:
+	input:
+		bam = "results/{rep}_{condition}.bam"
+	output:
+		sorted = "results/{rep}_{condition}_sorted.bam"
+	conda:
+		'envs/samtools_env.yml'
+	shell:
+		'''
+		samtools sort {input.bam} -o {output.sorted}
+		'''
+
+rule flagstats_wMT:
+	input:
+		bam = "results/{rep}_{condition}_sorted.bam"
+	output:
+		flagstats = 'results/{rep}_{condition}_sorted_wMT_flagstats.txt'
+	conda:
+		'envs/samtools_env.yml'
+	shell:
+		'''
+		samtools flagstats {input.bam} > {output.flagstats}
+		'''
+
+rule idxstats_wMT:
+	input:
+		bam = "results/{rep}_{condition}_sorted.bam"
+	output:
+		idxs = "results/{rep}_{condition}_sorted.idxstats"
+	conda:
+		'envs/samtools_env.yml'
+	shell:
+		'''
+		samtools idxstats {input.bam} > {output.idxs}
+		'''
+
+rule remove_MT:
+	input:
+		bam = "results/{rep}_{condition}_sorted.bam"
+	output:
+		bam_noMT = "results/{rep}_{condition}_sorted_noMT.bam"
+	conda:
+		'envs/samtools_env.yml'
+	shell:
+		'''
+		samtools view -h {input.bam} | grep -v chrM | samtools sort -O bam -o {output.bam_noMT} -T .
+		'''
+
+rule flagstats_noMT:
+	input:
+		bam = "results/{rep}_{condition}_sorted_noMT.bam"
+	output:
+		flagstats = 'results/{rep}_{condition}_sorted_noMT_flagstats.txt'
+	conda:
+		'envs/samtools_env.yml'
+	shell:
+		'''
+		samtools flagstats {input.bam} > {output.flagstats}
+		'''
+
+rule idxstats_noMT:
+	input:
+		bam = "results/{rep}_{condition}_sorted_noMT.bam"
+	output:
+		idxs = "results/{rep}_{condition}_sorted_noMT.idxstats"
+	conda:
+		'envs/samtools_env.yml'
+	shell:
+		'''
+		samtools idxstats {input.bam} > {output.idxs}
+		'''
+
+rule alignmentsieve:
+	input:
+		bam = "results/{rep}_{condition}_sorted_noMT.bam"
+	output:
+		bam = "results/{rep}_{condition}_sorted_shifted.bam"
+	conda:
+		'envs/deeptools_env.yml'
+	shell:
+		'''
+		alignmentSieve --ATACshift -b {input.bam} -o {output.bam}
+		'''
+
+rule samtools_idx:
+	input:
+		bam = "results/{rep}_{condition}_sorted_shifted.bam"
+	output:
+		bai = "results/{rep}_{condition}_sorted_shifted.bam.bai"
+	conda:
+		'envs/samtools_env.yml'
+	shell:
+		'''
+		samtools index {input.bam}
+		'''
+
+rule bamCoverage:
+	input:
+		bam = "results/{rep}_{condition}_sorted_shifted.bam",
+		bai = "results/{rep}_{condition}_sorted_shifted.bam.bai"
+	output:
+		bigwig = "results/{rep}_{condition}.bigWig"
+	threads: 4
+	conda:
+		'envs/deeptools_env.yml'
+	shell:
+		'''
+		bamCoverage -b {input.bam} -o {output.bigwig}
+		'''
+
+rule multiBwSummary:
+	input:
+		bigwig = expand("results/{rep}_{condition}.bigWig", condition=CONDITIONS, rep=REPS)
+	output:
+		multiBW = "results/ATACseq_sampleresults.npz"
+	conda:
+		'envs/deeptools_env.yml'
+	shell:
+		'''
+		multiBigwigSummary bins -b {input.bigwig} -o {output.multiBW}
+		'''
+
+rule plotCorrelation:
+	input:
+		matrix = 'results/ATACseq_sampleresults.npz'
+	output:
+		plot = 'results/ATACseq_samplepearsoncorrelation.png'
+	params:
+	conda:
+		'envs/deeptools_env.yml'
+	shell:
+		'''
+		plotCorrelation -in {input.matrix} --corMethod spearman --skipZeros \
+		--whatToPlot heatmap --plotNumbers -o {output.plot}
 		'''
