@@ -47,7 +47,7 @@ rule fastqc:
 rule trimomatic:
 	input: 
 		fastq = 'samples/{rep}_{condition}.fastq.gz',
-		adapters = 'TruSeq3-SE.fa'
+		adapters = 'adapter/NexteraPE-PE.fa'
 	output:
 		trimmed = 'results/{rep}_{condition}.trimmed.fastq'
 	threads: 8
@@ -147,9 +147,22 @@ rule idxstats_noMT:
 		samtools idxstats {input.bam} > {output.idxs}
 		'''
 
-rule alignmentsieve:
+rule samtools_idx:
 	input:
 		bam = "results/{rep}_{condition}_sorted_noMT.bam"
+	output:
+		bai = "results/{rep}_{condition}_sorted_noMT.bam.bai"
+	conda:
+		'envs/samtools_env.yml'
+	shell:
+		'''
+		samtools index {input.bam}
+		'''
+
+rule alignmentsieve:
+	input:
+		bam = "results/{rep}_{condition}_sorted_noMT.bam",
+		bai = "results/{rep}_{condition}_sorted_noMT.bam.bai"
 	output:
 		bam = "results/{rep}_{condition}_sorted_shifted.bam"
 	conda:
@@ -159,7 +172,7 @@ rule alignmentsieve:
 		alignmentSieve --ATACshift -b {input.bam} -o {output.bam}
 		'''
 
-rule samtools_idx:
+rule samtools_idx_shifted:
 	input:
 		bam = "results/{rep}_{condition}_sorted_shifted.bam"
 	output:
