@@ -11,6 +11,7 @@ rule all:
 		expand("results/{rep}_{condition}_sorted_noMT_flagstats.txt", condition=CONDITIONS, rep=REPS),
 		expand("results/{rep}_{condition}_sorted.idxstats", condition=CONDITIONS, rep=REPS),
 		expand("results/{rep}_{condition}_sorted_noMT.idxstats", condition=CONDITIONS, rep=REPS),
+		expand("results/{rep}_{condition}_sorted_shifted.idxstats", condition=CONDITIONS, rep=REPS),
 		'results/ATACseq_samplepearsoncorrelation.png'
 
 ## BUILD GENOME INDEX AND PREPROCESS SAMPLES
@@ -156,7 +157,7 @@ rule samtools_idx:
 		'envs/samtools_env.yml'
 	shell:
 		'''
-		samtools index {input.bam}
+		samtools index {input.bam} {output.bai}
 		'''
 
 rule alignmentsieve:
@@ -181,7 +182,19 @@ rule samtools_idx_shifted:
 		'envs/samtools_env.yml'
 	shell:
 		'''
-		samtools index {input.bam}
+		samtools index {input.bam} {output.bai}
+		'''
+
+rule idxstats_shifted:
+	input:
+		bam = "results/{rep}_{condition}_sorted_shifted.bam"
+	output:
+		idxs = "results/{rep}_{condition}_sorted_shifted.idxstats"
+	conda:
+		'envs/samtools_env.yml'
+	shell:
+		'''
+		samtools idxstats {input.bam} > {output.idxs}
 		'''
 
 rule bamCoverage:
