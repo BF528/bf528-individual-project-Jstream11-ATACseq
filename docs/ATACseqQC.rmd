@@ -1,0 +1,183 @@
+Briefly remark on the quality of the sequencing reads and the alignment statistics, make sure to specifically mention the following:
+- Are there any concerning aspects of the quality control of your sequencing reads?
+*potential downstream issues → per tile sequence quality for each sample → issues with flowcell*
+*per base sequence content failure → 5’ bias due to transposase-5 (Tn5) sequence bias*
+*sequence duplication levels failure → normal for ATAC-seq?*
+
+- Are there any concerning aspects of the quality control related to alignment?
+- Based on all of your quality control, will you exclude any samples from further analysis?
+
+After alignment, quickly calculate how many alignments were generated from each sample in total and how many alignments were against the mitochondrial chromosome
+- Report the total number of alignments per sample
+*rep3: 36224722 *
+*rep4: 27551934 *
+- Report the number of alignments against the mitochondrial genome
+*rep3: chrM	16569	116331965	277073*
+*rep4: chrM	16569	84837401	180061*
+
+```{r}
+library(BiocManager)
+BiocManager::install(c("ATACseqQC", "ChIPpeakAnno", "MotifDb", "GenomicAlignments",
+           "BSgenome.Hsapiens.UCSC.hg19", "TxDb.Hsapiens.UCSC.hg19.knownGene",
+           "phastCons100way.UCSC.hg19"))
+```
+```{r}
+library(ATACseqQC)
+```
+
+- Estimate library complexity xx
+- Fragment size distribution xx
+- GC bias
+- Nucleosome positioning
+- Plot footprints
+- Plot correlations between samples
+
+```{r}
+# IMPORT BAM FILES
+# ATACrep3_shifted.sorted.bam
+# ATACrep4_shifted.sorted.bam
+setwd('/projectnb/bf528/students/jstream/bf528-individual-project-Jstream11')
+## input is bamFile
+bamfile3 <- file.path(getwd(), "results", "ATACrep3_shifted.sorted.bam")
+
+
+bamfile4 <- file.path(getwd(), "results", "ATACrep4_shifted.sorted.bam")
+
+# estimate library complexity
+# rep3
+estimateLibComplexity(readsDupFreq(bamfile3))
+
+# rep4
+estimateLibComplexity(readsDupFreq(bamfile4))
+```
+```{r}
+setwd('/projectnb/bf528/students/jstream/bf528-individual-project-Jstream11')
+
+# Define file paths
+bamfile3 <- file.path(getwd(), "results", "ATACrep3_shifted.sorted.bam")
+bamfile4 <- file.path(getwd(), "results", "ATACrep4_shifted.sorted.bam")
+
+# Define labels for BAM files
+bamfile3_labels <- "ATACrep3"
+bamfile4_labels <- "ATACrep4"
+
+## generate fragement size distribution
+fragSize3 <- fragSizeDist(bamfile3, bamfile3_labels)
+## generate fragement size distribution
+fragSize4 <- fragSizeDist(bamfile4, bamfile4_labels)
+```
+
+
+
+```{r}
+library(TxDb.Hsapiens.UCSC.hg38.knownGene)
+library(GenomicAlignments)
+# Read aligned reads data from BAM file
+rep3 <- readGAlignments(bamfile3)
+rep4 <- readGAlignments(bamfile4)
+
+txs <- transcripts(TxDb.Hsapiens.UCSC.hg38.knownGene)
+pt3 <- PTscore(rep3, txs)
+plot(pt$log2meanCoverage, pt$PT_score, 
+     xlab="log2 mean coverage",
+     ylab="Promoter vs Transcript")
+pt4 <- PTscore(rep4, txs)
+plot(pt$log2meanCoverage, pt$PT_score, 
+     xlab="log2 mean coverage",
+     ylab="Promoter vs Transcript")
+```
+
+```{r}
+# Print the total number of alignments
+print('rep3')
+print(rep3)
+print('rep4')
+print(rep4)
+
+```
+
+```{r}
+nfr3 <- NFRscore(rep3, txs)
+plot(nfr3$log2meanCoverage, nfr3$NFR_score, 
+     xlab="log2 mean coverage",
+     ylab="Nucleosome Free Regions score",
+     main="NFRscore for 200bp flanking TSSs",
+     xlim=c(-10, 0), ylim=c(-5, 5))
+
+nfr4 <- NFRscore(rep4, txs)
+plot(nfr4$log2meanCoverage, nfr4$NFR_score, 
+     xlab="log2 mean coverage",
+     ylab="Nucleosome Free Regions score",
+     main="NFRscore for 200bp flanking TSSs",
+     xlim=c(-10, 0), ylim=c(-5, 5))
+```
+
+```{r}
+tsse3 <- TSSEscore(rep3, txs)
+tsse3$TSSEscore
+
+tsse4 <- TSSEscore(rep4, txs)
+tsse4$TSSEscore
+```
+
+```{r}
+plot(100*(-9:10-.5), tsse3$values, type="b", 
+     xlab="distance to TSS",
+     ylab="aggregate TSS score")
+
+plot(100*(-9:10-.5), tsse4$values, type="b", 
+     xlab="distance to TSS",
+     ylab="aggregate TSS score")
+```
+
+```{r}
+if (!require("BiocManager", quietly = TRUE))
+    install.packages("BiocManager")
+
+BiocManager::install("BSgenome.Hsapiens.UCSC.hg38")
+```
+```{r}
+if (!require("BiocManager", quietly = TRUE))
+    install.packages("BiocManager")
+
+BiocManager::install("phastCons100way.UCSC.hg38")
+```
+
+```{r}
+library(BSgenome.Hsapiens.UCSC.hg38)
+library(phastCons100way.UCSC.hg38)
+## bamfile tags
+tags <- c("AS", "XN", "XM", "XO", "XG", "NM", "MD", "YS", "YT")
+## files will be output into outPath
+outPath <- "splited"
+dir.create(outPath)
+## shift the bam file by the 5'ends
+library(BSgenome.Hsapiens.UCSC.hg38)
+seqlev <- "chr1" ## subsample data for quick run
+which <- as(seqinfo(Hsapiens)[seqlev], "GRanges")
+rep3 <- readBamFile(bamfile3, tag=tags, which=which, asMates=TRUE)
+rep3_shift <- shiftGAlignmentsList(rep3)
+shiftedBamfile <- file.path(outPath, "shifted.bam")
+export(rep3_shift, shiftedBamfile)
+
+## run program for chromosome 1 only
+txs <- txs[seqnames(txs) %in% "chr1"]
+genome <- Hsapiens
+
+## split the reads into NucleosomeFree, mononucleosome, 
+## dinucleosome and trinucleosome.
+## and save the binned alignments into bam files.
+objs3 <- splitGAlignmentsByCut(rep3_shift, txs=txs, genome=genome, outPath = outPath,
+                              conservation=phastCons100way.UCSC.hg38)
+## list the files generated by splitGAlignmentsByCut.
+dir(outPath)
+```
+
+
+
+
+
+
+
+
+
