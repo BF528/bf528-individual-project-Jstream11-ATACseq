@@ -23,6 +23,7 @@ BiocManager::install(c("ATACseqQC", "ChIPpeakAnno", "MotifDb", "GenomicAlignment
 ```
 ```{r}
 library(ATACseqQC)
+library(ggplot2)
 ```
 
 - Estimate library complexity xx
@@ -54,8 +55,8 @@ estimateLibComplexity(readsDupFreq(bamfile4))
 setwd('/projectnb/bf528/students/jstream/bf528-individual-project-Jstream11')
 
 # Define file paths
-bamfile3 <- file.path(getwd(), "results", "ATACrep3_shifted.sorted.bam")
-bamfile4 <- file.path(getwd(), "results", "ATACrep4_shifted.sorted.bam")
+bamfile3 <- file.path(getwd(), "results", "ATACrep3.shifted.resorted.bam")
+bamfile4 <- file.path(getwd(), "results", "ATACrep4.shifted.resorted.bam")
 
 # Define labels for BAM files
 bamfile3_labels <- "ATACrep3"

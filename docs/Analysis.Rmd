@@ -1,0 +1,104 @@
+
+
+```{r}
+library('tidyverse')
+library('ggplot2')
+library('pheatmap')
+```
+PEAK ANALYSIS - proportions of regions that appear to have accessible chromatin called as a peak (Promoter, Intergenic, Intron, Exon, TTS, etc.)
+```{r}
+read_file <- function(filename){
+   # read in counts matrix
+  results <- readr::read_tsv(filename) 
+  return(results)
+}
+
+Peak_Results <- read_file('/projectnb/bf528/students/jstream/bf528-individual-project-Jstream11/results/annotate_peaks.txt')
+column_names <- colnames(Peak_Results)
+```
+```{r}
+peaks <- Peak_Results %>%
+  select(Annotation)
+total_peaks <- peaks %>% count()
+
+promoter_peaks <- peaks %>%
+  filter(grepl('promoter-TSS', Annotation))
+intergenic_peaks <- peaks %>%
+  filter(grepl('Intergenic', Annotation))
+intron_peaks <- peaks %>%
+  filter(grepl('intron', Annotation))
+exon_peaks <- peaks %>%
+  filter(grepl('exon', Annotation))
+TTS_peaks <- peaks %>%
+  filter(grepl('TTS', Annotation))
+
+# Count the number of peaks for each feature type
+promoter_count <- promoter_peaks %>% count() 
+intergenic_count <- intergenic_peaks %>% count()
+intron_count <- intron_peaks %>% count()
+exon_count <- exon_peaks %>% count()
+TTS_count <- TTS_peaks %>% count()
+
+# Calculate the proportion of each feature type
+promoter_proportion <- (promoter_count$n / total_peaks)
+intergenic_proportion <- (intergenic_count$n / total_peaks)
+intron_proportion <- (intron_count$n / total_peaks)
+exon_proportion <- (exon_count$n / total_peaks)
+TTS_proportion <- (TTS_count$n / total_peaks)
+
+# Create data frames for each feature type with proportions
+promoter_df <- data.frame(Feature_Type = "Promoter", Proportion = promoter_proportion)
+intergenic_df <- data.frame(Feature_Type = "Intergenic", Proportion = intergenic_proportion)
+intron_df <- data.frame(Feature_Type = "Intron", Proportion = intron_proportion)
+exon_df <- data.frame(Feature_Type = "Exon", Proportion = exon_proportion)
+TTS_df <- data.frame(Feature_Type = "TTS", Proportion = TTS_proportion)
+
+# Combine data frames into a single data frame
+feature_distribution <- bind_rows(promoter_df, intergenic_df, intron_df, exon_df, TTS_df)
+
+
+# Print the resulting data frame
+print(feature_distribution)
+```
+```{r}
+setwd('/projectnb/bf528/students/jstream/bf528-individual-project-Jstream11')
+
+# Generate the plot
+plot <- ggplot(feature_distribution, aes(x = Feature_Type, y = n, fill = Feature_Type)) +
+  geom_bar(stat = "identity") + 
+  labs(title = "Accessible Chromatin Region Types", y = "Proportion of Peaks", x = "Genomic Feature Type") +
+  theme_classic() +
+  guides(fill = FALSE)
+
+# Save the plot as a PNG file
+ggsave("/projectnb/bf528/students/jstream/bf528-individual-project-Jstream11/results/Region_distribution_plot.png", plot, width = 8, height = 6, dpi = 300)
+
+  
+```
+
+GENE ENRICHMENT ANALYSIS
+```{r}
+GO_results <- readr::read_csv('/projectnb/bf528/students/jstream/bf528-individual-project-Jstream11/results/GO_results.csv') 
+GO_columns <- colnames(GO_results)
+```
+
+```{r}
+top_pathways <- GO_results %>% 
+  arrange("ln(P)") %>%
+  mutate(Ratio = `# of Target Genes in Term` / `# of Genes in Term`) %>%
+  head(20)
+
+heatmap_data <- top_pathways[, c(2, 3, 11)]  # P-value, Term, remaining columns (conditions/samples)
+
+plot <- ggplot(heatmap_data, aes(x = Ratio, y = Term, color = `ln(P)`)) +
+  geom_point(size = 3) + 
+  scale_color_gradient(low = "blue", high = "red", name = "ln(P)") +
+  scale_x_continuous(limits=c(0,1)) +
+  labs(title = "Peak GO Enrichment", y = "GO Term", x = "GO Term Target Genes Ratio") +
+  theme_classic() +
+  theme(plot.margin = margin(1, 0.5, 1, 0.5, "pt"),
+        axis.text.x = element_text(angle = 45, hjust = 1)) 
+
+ggsave("/projectnb/bf528/students/jstream/bf528-individual-project-Jstream11/results/Gene_enrichment_plot.png", plot, width = 10, height = 6, dpi = 300)
+
+```
