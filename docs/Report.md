@@ -113,9 +113,9 @@ Figure 1. Fragment length distribution plots for aligned reads of
 samples ATACrep3 and ATACrep4.
 
 ![Rep3 Fragment Size
-Plot](/projectnb/bf528/students/jstream/bf528-individual-project-Jstream11/results/rep3_frag_sizes.png)
+Plot](/results/rep3_frag_sizes.png)
 ![Rep4 Fragment Size
-Plot](/projectnb/bf528/students/jstream/bf528-individual-project-Jstream11/results/rep4_frag_sizes.png)
+Plot](/results/rep4_frag_sizes.png)
 
 Table 1. Aligned read counts of samples ATACrep3 and ATACrep4 before
 mitochondrial chromosome filtering, after mitochondrial chromosome
@@ -131,9 +131,9 @@ centered on the transcription start site (TSS) for the nucleosome-free
 regions (NFR, green) and the nucleosome-bound regions (NBR, blue).
 
 ![Rep3 Signal Coverage
-Plot](/projectnb/bf528/students/jstream/bf528-individual-project-Jstream11/results/ATACrep3_coverage_plot.png)![Rep4
+Plot](/results/ATACrep3_coverage_plot.png)![Rep4
 Signal Coverage
-Plot](/projectnb/bf528/students/jstream/bf528-individual-project-Jstream11/results/ATACrep4_coverage_plot.png)
+Plot](/results/ATACrep4_coverage_plot.png)
 
 Table 2. Number of peaks called in each replicate, the number of
 reproducible peaks, and the number of reproducible peaks after blacklist
@@ -146,7 +146,7 @@ filtering.
 Table 3. Motif finding results for reproducible, blacklist filtered
 peaks.
 
-![](/projectnb/bf528/students/jstream/bf528-individual-project-Jstream11/results/Known_motif_results.png)
+![](/results/Known_motif_results.png)
 
 Figure 3. Gene enrichment analysis of reproducible, blacklist filtered
 peaks. Top 20 most significant GO terms are colored based on
@@ -154,12 +154,12 @@ significance (ln(P)) and plotted against the target gene ratios, the
 amount of targets found versus the amount of genes in each GO term
 geneset.
 
-![](/projectnb/bf528/students/jstream/bf528-individual-project-Jstream11/results/Gene_enrichment_plot.png)
+![](/results/Gene_enrichment_plot.png)
 
 Figure 4. Distibution of peaks by region biologic feature type:
 Promoter, Intergenic, Intron, Exon, and TTS.
 
-![](/projectnb/bf528/students/jstream/bf528-individual-project-Jstream11/results/Region_distribution_plot.png)
+![](/results/Region_distribution_plot.png)
 
 ## Methods
 
