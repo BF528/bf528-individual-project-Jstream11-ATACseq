@@ -12,7 +12,13 @@ rule all:
 		expand("results/{rep}_sorted.idxstats", rep=REPS),
 		expand("results/{rep}_sorted_noMT.idxstats", rep=REPS),
 		expand("results/{rep}_sorted_shifted.idxstats", rep=REPS),
-		'results/ATACseq_samplepearsoncorrelation.png'
+		'results/multiqc_report.html',
+		'results/ATACseq_samplepearsoncorrelation.png',
+		"results/annotate_peaks.txt",
+		"results/peaks_GO",
+		"results/MotifOutput",
+		expand("results/{rep}_coverage_plot.png", rep=REPS)
+
 
 ## BUILD GENOME INDEX AND PREPROCESS SAMPLES
 rule bowtie2_build_gencode:
@@ -85,7 +91,7 @@ rule samtools_sort:
 	input:
 		bam = "results/{rep}.bam"
 	output:
-		sorted = "results/{rep}_sorted.bam"
+		sorted = "results/{rep}.sorted.bam"
 	conda:
 		'envs/samtools_env.yml'
 	shell:
@@ -95,7 +101,7 @@ rule samtools_sort:
 
 rule flagstats_wMT:
 	input:
-		bam = "results/{rep}_sorted.bam"
+		bam = "results/{rep}.sorted.bam"
 	output:
 		flagstats = 'results/{rep}_sorted_wMT_flagstats.txt'
 	conda:
@@ -107,7 +113,7 @@ rule flagstats_wMT:
 
 rule idxstats_wMT:
 	input:
-		bam = "results/{rep}_sorted.bam"
+		bam = "results/{rep}.sorted.bam"
 	output:
 		idxs = "results/{rep}_sorted.idxstats"
 	conda:
@@ -119,9 +125,9 @@ rule idxstats_wMT:
 
 rule remove_MT:
 	input:
-		bam = "results/{rep}_sorted.bam"
+		bam = "results/{rep}.sorted.bam"
 	output:
-		bam_noMT = "results/{rep}_sorted_noMT.bam"
+		bam_noMT = "results/{rep}.sorted_noMT.bam"
 	conda:
 		'envs/samtools_env.yml'
 	shell:
@@ -131,7 +137,7 @@ rule remove_MT:
 
 rule flagstats_noMT:
 	input:
-		bam = "results/{rep}_sorted_noMT.bam"
+		bam = "results/{rep}.sorted_noMT.bam"
 	output:
 		flagstats = 'results/{rep}_sorted_noMT_flagstats.txt'
 	conda:
@@ -143,7 +149,7 @@ rule flagstats_noMT:
 
 rule idxstats_noMT:
 	input:
-		bam = "results/{rep}_sorted_noMT.bam"
+		bam = "results/{rep}.sorted_noMT.bam"
 	output:
 		idxs = "results/{rep}_sorted_noMT.idxstats"
 	conda:
@@ -155,9 +161,9 @@ rule idxstats_noMT:
 
 rule samtools_idx:
 	input:
-		bam = "results/{rep}_sorted_noMT.bam"
+		bam = "results/{rep}.sorted_noMT.bam"
 	output:
-		bai = "results/{rep}_sorted_noMT.bam.bai"
+		bai = "results/{rep}.sorted_noMT.bam.bai"
 	conda:
 		'envs/samtools_env.yml'
 	shell:
@@ -167,10 +173,10 @@ rule samtools_idx:
 
 rule alignmentsieve:
 	input:
-		bam = "results/{rep}_sorted_noMT.bam",
-		bai = "results/{rep}_sorted_noMT.bam.bai"
+		bam = "results/{rep}.sorted_noMT.bam",
+		bai = "results/{rep}.sorted_noMT.bam.bai"
 	output:
-		bam = "results/{rep}_shifted.bam"
+		bam = "results/{rep}.shifted.bam"
 	conda:
 		'envs/deeptools_env.yml'
 	shell:
@@ -180,9 +186,9 @@ rule alignmentsieve:
 
 rule samtools_resort:
 	input:
-		bam = "results/{rep}_shifted.bam"
+		bam = "results/{rep}.shifted.bam"
 	output:
-		sorted = "results/{rep}_shifted.sorted.bam"
+		sorted = "results/{rep}.shifted.resorted.bam"
 	conda:
 		'envs/samtools_env.yml'
 	shell:
@@ -192,9 +198,9 @@ rule samtools_resort:
 
 rule samtools_idx_shifted:
 	input:
-		bam = "results/{rep}_shifted.sorted.bam"
+		bam = "results/{rep}.shifted.resorted.bam"
 	output:
-		bai = "results/{rep}_shifted.sorted.bam.bai"
+		bai = "results/{rep}.shifted.resorted.bam.bai"
 	conda:
 		'envs/samtools_env.yml'
 	shell:
@@ -204,8 +210,8 @@ rule samtools_idx_shifted:
 
 rule idxstats_shifted:
 	input:
-		bam = "results/{rep}_shifted.sorted.bam",
-		bai = "results/{rep}_shifted.sorted.bam.bai"
+		bam = "results/{rep}.shifted.resorted.bam",
+		bai = "results/{rep}.shifted.resorted.bam.bai"
 	output:
 		idxs = "results/{rep}_sorted_shifted.idxstats"
 	conda:
@@ -215,10 +221,24 @@ rule idxstats_shifted:
 		samtools idxstats {input.bam} > {output.idxs}
 		'''
 
+rule multiqc:
+	input:
+		fq = expand("results/{rep}_sorted_shifted.idxstats", rep=REPS)
+	output:
+		multiqc = 'results/multiqc_report.html'
+	params:
+		results = 'results/'
+	conda:
+		'envs/multiqc_env.yml'
+	shell:
+		'''
+		multiqc {params.results} -o {params.results} -f
+		'''
+
 rule bamCoverage:
 	input:
-		bam = "results/{rep}_shifted.sorted.bam",
-		bai = "results/{rep}_shifted.sorted.bam.bai"
+		bam = "results/{rep}.shifted.resorted.bam",
+		bai = "results/{rep}.shifted.resorted.bam.bai"
 	output:
 		bigwig = "results/{rep}.bigWig"
 	threads: 4
@@ -254,3 +274,133 @@ rule plotCorrelation:
 		plotCorrelation -in {input.matrix} --corMethod spearman --skipZeros \
 		--whatToPlot heatmap --plotNumbers -o {output.plot}
 		'''
+
+# PEAK CALLING AND MOTIF FINDING
+# MACS3 callpeak
+
+rule MACS3_callpeak:
+	input:
+		bam = "results/{rep}.shifted.resorted.bam",
+		bai = "results/{rep}.shifted.resorted.bam.bai"
+	output:
+		control = "results/{rep}.Macs3callpeaks_control_lambda.bdg",
+		treat = "results/{rep}.Macs3callpeaks_treat_pileup.bdg",
+		summits = "results/{rep}.Macs3callpeaks_summits.bed",
+		xls = "results/{rep}.Macs3callpeaks_peaks.xls",
+		narrowPeak = "results/{rep}.Macs3callpeaks_peaks.narrowPeak"
+	params:
+		peaks = "results/{rep}.Macs3callpeaks"
+	conda:
+		'envs/macs_env.yml'
+	shell:
+		'''
+		macs3 callpeak -f BAMPE -t {input.bam} -g hs -n {params.peaks} -B -q 0.01
+		'''
+
+rule intersect_peaks:
+	input:
+		bed1 = "results/ATACrep3.Macs3callpeaks_summits.bed",
+		bed2 = "results/ATACrep4.Macs3callpeaks_summits.bed"
+	output:
+		rep_peaks = "results/reproducible_peaks.bed"
+	conda:
+		'envs/bedtools_env.yml'
+	shell:
+		'''
+		bedtools intersect -a {input.bed1} -b {input.bed2} -f 0.5 -r > {output.rep_peaks}
+		'''
+
+rule filter_blacklist:
+	input: 
+		rep_peaks = "results/reproducible_peaks.bed",
+		blacklist = "samples/hg38-blacklist.v2.bed"
+	output:
+		filtered_peaks = "results/reproducible_peaks_blacklist_filtered.bed"
+	conda:
+		'envs/bedtools_env.yml'
+	shell:
+		'''
+		bedtools intersect -a {input.rep_peaks} -b {input.blacklist} -v > {output.filtered_peaks}
+		'''
+
+rule annotate_peaks:
+	input:
+		peaks = "results/reproducible_peaks_blacklist_filtered.bed",
+		gtf = "samples/gencode.v45.primary_assembly.annotation.gtf"
+	output:
+		annotated = "results/annotate_peaks.txt",
+		GO = directory("results/peaks_GO")
+	conda:
+		'envs/homer_env.yml'
+	shell:
+		'''
+		annotatePeaks.pl {input.peaks} hg38 -gtf {input.gtf} > {output.annotated} -go {output.GO}
+		'''
+
+rule motifs:
+	input:
+		peaks = "results/reproducible_peaks_blacklist_filtered.bed",
+		genome = "samples/GRCh38.primary_assembly.genome.fa"
+	output:
+		output_dir = directory("results/MotifOutput")
+	conda:
+		'envs/homer_env.yml'
+	shell:
+		'''
+		findMotifsGenome.pl {input.peaks} {input.genome} {output.output_dir} -size 200
+		'''
+
+## SIGNAL PLOT
+rule bamCoverage_NFR:
+    input:
+        bam = "results/{rep}.shifted.resorted.bam"
+    output:
+        nfr = "results/{rep}.NFR.bigWig"
+    conda:
+        'envs/deeptools_env.yml'
+    shell:
+        '''
+        bamCoverage -b {input.bam} --maxFragmentLength 100 -o {output.nfr}
+        '''
+
+rule bamCoverage_NBR:
+    input:
+        bam = "results/{rep}.shifted.resorted.bam"
+    output:
+        nbr = "results/{rep}.NBR.bigWig"
+    conda:
+        'envs/deeptools_env.yml'
+    shell:
+        '''
+        bamCoverage -b {input.bam} --minFragmentLength 100 -o {output.nbr}
+        '''
+
+
+rule computeMatrix_combined:
+    input:
+        bed = "samples/hg38_genes.bed",
+        NBR = "results/{rep}.NBR.bigWig",
+        NFR = "results/{rep}.NFR.bigWig",
+    output:
+        matrix = "results/{rep}.combined_matrix.gz"
+    params:
+        bin_size = 2000
+    conda:
+        'envs/deeptools_env.yml'
+    threads: 4
+    shell:
+        '''
+        computeMatrix scale-regions -S {input.NBR} {input.NFR} -R {input.bed} -b {params.bin_size} -a{params.bin_size} -o {output.matrix} 
+        '''
+
+rule plotProfile:
+    input:
+        matrix =  "results/{rep}.combined_matrix.gz"
+    output:
+        plot = "results/{rep}_coverage_plot.png"
+    conda:
+        'envs/deeptools_env.yml'
+    shell:
+        '''
+        plotProfile -m {input.matrix} -out {output.plot} --perGroup
+        '''
